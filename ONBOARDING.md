@@ -1,37 +1,36 @@
 # decide-design 入库指南
 
-这个仓库评估从一本书里选出的材料是否命中人工标注。先运行离线夹具，再跟踪一条问题从书块进入名词表、候选袋和打分的完整路径。审阅基线为 [main · 6a1ac3a](https://github.com/18926119195/decide-design/commit/6a1ac3a853b8a2107a3af248014b07bb029ff0bc)。
+[一分钟定位](#一分钟定位) · [沿聊天时间线看灵感](#沿聊天时间线看灵感) · [从代码反查来由](#从代码反查来由) · [走读与维护记录](#走读与维护记录)
 
-## 从这里开始
+## 一分钟定位
 
-1. 读 [9 月 13 日导出的协作记录](docs/chat-export/decide-design-chat-29c55109.md) 和它的 [JSONL 原件](docs/chat-export/decide-design-chat-29c55109.jsonl)。先看“锁定热路径”及用户确认的拓扑袋。两份文件是同一次会话的两种呈现。
-2. 从 [语料解析](src/harness/loadCorpus.ts) 读到 [评测 CLI](scripts/eval-decide.ts)，沿 [runNounTableMaterial](src/harness/runNounTableMaterial.ts) 到 [scoreCase](src/harness/score.ts)。Web 的入口是 [src/server/main.ts](src/server/main.ts) 的 `/api/run`，参考 [运行说明](README.md)。
-3. 查 [构表监督](src/harness/superviseS0S1.ts) 和 [监视报告](src/harness/buildMonitorExport.ts)。`fixtures/` 放题单示例，`results/` 放评测产物和早期监督样本。Gold 一律以本次题单核对。
+这是独立的名词表选材评测仓。输入是书块语料和人工标注题单，输出是预测材料、命中页与精确率/召回率。原作者想观察同一个词出现在书上不同地方时，附近的其他词能否帮 decide 找到真正有关的材料。阅读基线为 [main · 6a1ac3a](https://github.com/18926119195/decide-design/commit/6a1ac3a853b8a2107a3af248014b07bb029ff0bc)。
 
-## 从聊天到代码
+## 沿聊天时间线看灵感
 
-| 时间与证据 | 原意与当前实现 |
-| --- | --- |
-| 9 月 13 日，[初始评测 harness](https://github.com/18926119195/decide-design/commit/a1ccc04) 与 [聊天归档提交](https://github.com/18926119195/decide-design/commit/0cd5b66) | 建立书块名词层、匹配命中、拓扑邻词、decide 与 gold 评分。代码位于 [bookNounIndex](src/core/bookNounIndex.ts) 和 [评测编排](src/harness/runNounTableMaterial.ts)，CLI 当前实际走名词表。 |
-| 9 月 14 日，[分批讨论 L422](https://github.com/18926119195/decide-design/blob/6a1ac3a853b8a2107a3af248014b07bb029ff0bc/9.14%E7%9A%84%E8%81%8A%E5%A4%A9%E8%AE%B0%E5%BD%95#L422) | 用户明确提出两个 S₀ 遮罩分组、组间并行、组内长包串联。记录指向另一个本机工作目录。本仓监督器按残文批次推进，尚未找到该组间并行、组内串行协议的可执行接线。 |
-| 9 月 14 日，[停闸 L2012 与导出要求 L2170](https://github.com/18926119195/decide-design/blob/6a1ac3a853b8a2107a3af248014b07bb029ff0bc/9.14%E7%9A%84%E8%81%8A%E5%A4%A9%E8%AE%B0%E5%BD%95#L2012-L2023) | 用户把停闸的 Δn 定义为本轮硬闸通过的抄写条数，且要求一键导出诊断。当前服务已有监督 JSON/Markdown 和 monitor。监督器有轮数上限及若干停止条件，Δn 的同义契约仍需逐轮夹具对齐。 [导出入口](https://github.com/18926119195/decide-design/blob/6a1ac3a853b8a2107a3af248014b07bb029ff0bc/9.14%E7%9A%84%E8%81%8A%E5%A4%A9%E8%AE%B0%E5%BD%95#L2170-L2176) |
+**如何读状态。** 已实现表示在所列版本找到与灵感相符的代码路径。部分实现表示已有其中一段。未实现表示已查的入口尚无对应实现。证据不足时标待确认。归档与设计文稿按资料本身的状态描述。
 
-[早期契约](docs/book-noun-pipeline-contract.md) 对 CLI 走既有 decide 的描述用于理解当时的设计，当前评测读取实际调用。此库适合固定为早期对照。[9 月 16 日的 main 快照](https://github.com/18926119195/decide-design-main)增加了偏移量试验，基线成绩需要单独记录。
+日期按会话中的北京时间；9 月 14 日原件按行号读取。9 月 13 日聊天的 [Markdown](docs/chat-export/decide-design-chat-29c55109.md) 和 [JSONL](docs/chat-export/decide-design-chat-29c55109.jsonl) 是同一会话的两种呈现。
 
-## 观测、判据与纠偏
+| 编号与聊天原件 | 当时提出的思路 | 当前状态与代码证据 |
+| --- | --- | --- |
+| <a name="idea-i01"></a>I01 · 9 月 13 日 10:23，[会话 6，L64–71](https://github.com/18926119195/decide-design/blob/6a1ac3a853b8a2107a3af248014b07bb029ff0bc/docs/chat-export/decide-design-chat-29c55109.md?plain=1#L64-L71) | 规则先从全书提取名词形成 S₀，遮住已有词后把残文交给模型补 S₁。 | **已实现可选路径。** 构表器先建规则层，评测开启 `residualLlm` 时再调用模型补缺。 [构表和补缺](src/harness/runNounTableMaterial.ts#L314-L348) |
+| <a name="idea-i02"></a>I02 · 9 月 13 日 10:36，[会话 9，L147–177](https://github.com/18926119195/decide-design/blob/6a1ac3a853b8a2107a3af248014b07bb029ff0bc/docs/chat-export/decide-design-chat-29c55109.md?plain=1#L147-L177) | 把同形词去重后给模型勾选，同时保留同一词每次实际出现的位置。 | **已实现。** 词表按归一后的词面组织，定位函数返回来源与偏移。 [归一与抽取](src/core/bookNounIndex.ts#L230) · [定位命中](src/core/bookNounIndex.ts#L386) |
+| <a name="idea-i03"></a>I03 · 9 月 13 日 10:36，[拓扑定义 L168–177](https://github.com/18926119195/decide-design/blob/6a1ac3a853b8a2107a3af248014b07bb029ff0bc/docs/chat-export/decide-design-chat-29c55109.md?plain=1#L168-L177) | 每个命中点取前后若干异名词做一个袋，由 decide 选出证据段，最终供推理使用。 | **部分实现。** 拓扑袋、decide 和选材打分已接入。这个独立仓的 CLI 输出评测结果，后续推理留在应用侧。 [邻词袋](src/core/bookNounIndex.ts#L483) · [评测入口](scripts/eval-decide.ts#L64-L101) |
+| <a name="idea-i04"></a>I04 · 9 月 13 日 16:02–16:07，[会话 36–38](https://github.com/18926119195/decide-design/blob/6a1ac3a853b8a2107a3af248014b07bb029ff0bc/docs/chat-export/decide-design-chat-29c55109.md?plain=1#L596-L644) | 先考虑按目录章节去重以保留异义，随后追问展开每个命中点后，是否还需要章节边界。 | **章内去重未落地。** 当前按全书词面维护词表，再把各处命中交给拓扑。 [全书名词表](src/core/bookNounIndex.ts#L274-L353) |
+| <a name="idea-i05"></a>I05 · 9 月 13 日 16:13，[会话 40](https://github.com/18926119195/decide-design/blob/6a1ac3a853b8a2107a3af248014b07bb029ff0bc/docs/chat-export/decide-design-chat-29c55109.md?plain=1#L669-L675) | 把准度验证抽成独立项目，直接拿选材结果和人工金标比较。 | **已实现。** 独立 CLI 和 Web 以语料包为输入，评分留在评测仓。 [评测入口](scripts/eval-decide.ts) · [初始评测提交](https://github.com/18926119195/decide-design/commit/a1ccc04) |
+| <a name="idea-i06"></a>I06 · 9 月 14 日，[分批讨论 L422–429](9.14的聊天记录#L422-L429) | 每两个 S₀ 遮罩定一组，组间并行，长组内按顺序接续。 | **未落地于本仓入口。** 原讨论的工具路径指向另一工作目录，本仓监督器按残文批次循环。 [监督批次](src/harness/superviseS0S1.ts#L228-L304) |
+| <a name="idea-i07"></a>I07 · 9 月 14 日，[监督与导出 L2170–2176](9.14的聊天记录#L2170-L2176) | 把构表质量和每次迭代依据集中导出，供作者与 AI 比较。 | **已实现导出。** Web 有构表监督和评测监视报告。在固定离线夹具中监督成功，夹具 S₁ 为 0。 [监督路由](src/server/main.ts#L219-L305) · [评测报告组装](src/harness/buildMonitorExport.ts) |
 
-- **参考目标**：每个预测 key 都能回到输入书块。固定语料版本、题单、gold 模式、模型和 `neighborN`。记录命中数、P/R、预测页及 bookKey，并同时保留候选和决定。
-- **扰动**：中英文别名、取词规则、OCR 噪声、空残文和模型超时。先重跑规则阶段，以 `S₀`、候选袋和输出 key 拆开定位偏差。模型参与时增加批次和耗时记录。
-- **门限**：确定性夹具的预测 key 皆属于输入，外来 key 应为 0。性能比较采用同一题单的 P、R 和失败数，允许的折损、预算及接受取舍由评测维护者在开跑前确认。
-- **执行顺序**：先补可分享的最小书包和正负 gold，再为残文新增、零新增、坏响应编写断言。确认停闸规则后才替换调度。若精度下降，按 S₀、S_q、候选袋、decide、score 的次序找到第一处偏差，将同一题的预期、实测和纠偏补入 PR。
+## 从代码反查来由
 
-```sh
-npm run smoke
-node --experimental-strip-types scripts/smoke-supervise.ts
-```
+- `src/core/bookNounIndex.ts` 回看 [I01](#idea-i01)–[I04](#idea-i04)，负责词面、书中位置和异名词袋。
+- `src/harness/runNounTableMaterial.ts` 回看 [I01](#idea-i01)、[I03](#idea-i03)，负责从问题、词表和材料一路运行到预测 key。
+- `src/harness/superviseS0S1.ts` 与 `src/harness/buildMonitorExport.ts` 回看 [I06](#idea-i06)–[I07](#idea-i07)，分别回答词表补齐与选材诊断。
+- `scripts/eval-decide.ts` → `src/harness/score.ts` 回看 [I05](#idea-i05)。旧 [设计契约](docs/book-noun-pipeline-contract.md) 里的 CLI 描述属于早期阶段，当前实际入口见脚本。
 
-本次在 Node 24.22.1 实跑，两条命令均通过。规则样例得到 4 个命中和 4 个袋，监督夹具输出 `|S₁|=0`，只覆盖该固定样例。真实 LLM、外部语料和 Web 导出未在本次复核跑通。准备好脱敏语料后可运行 `npm run eval -- --corpus <book.docuverse.json> --eval fixtures/eval.example.json`，将尖括号占位替换为实际路径。
+## 走读与维护记录
 
-## 方法依据
+第一次跟踪一个词，直接打开 [冒烟夹具](scripts/smoke-noun.ts)，找第 1 页的 Lacan 和邻近的异名词，再根据 [I03](#idea-i03) 的定位函数看它们怎样入袋。也可运行 `npm run smoke` 查看 `Lacan@p1` 的输出。本次 Node 24 上该夹具和构表监督冒烟通过；真实模型和外部书包未在本次运行。后续修订这一页时，保留原聊天位置与编号，给修正后的状态补确切提交、入口和行为证据。
 
-本指南把总体设计落实为边界、目标和任务接口，把工程控制中的反馈落实为观测、判据和纠偏。维护者用原始协作记录、代码和固定样本共同核验定性判断与量化结果，据此决定下一轮行动。[《工程控制论》](https://openlibrary.org/books/OL49218199M/Engineering_cybernetics) · [《组织管理的技术——系统工程》](https://doi.org/10.13255/j.cnki.jusst.2011.06.020) · [《一个科学新领域——开放的复杂巨系统及其方法论》](https://cnki.istiz.org.cn/kcms/detail/detail.aspx?dbcode=CPFD&dbname=cpfd1999&filename=ZGXC199008001001)
+**指南如何更新。** 以仓库和版本划定范围，从聊天提取原始目标，再用代码与产物校正对当时决策的理解。新证据出现时，回到原编号修订记录。这种读法借鉴了钱学森的系统工程和工程控制论。 [《组织管理的技术——系统工程》](https://doi.org/10.13255/j.cnki.jusst.2011.06.020) · [《工程控制论》](https://openlibrary.org/books/OL49218199M/Engineering_cybernetics)
